@@ -118,8 +118,9 @@ class DummyEnv(BaseRoadmapEnv):
 
             with open(logging_path, 'a') as f:
                 f.write('[' + datetime.strftime(datetime.now(), '%Y-%m-%d %H:%M:%S') + ']\n')
-                f.write(f"best trajs have been changed in ts={total_steps}. "  # TODO 4/16 efficiency
+                f.write(f"best trajs have been changed in ts={total_steps}. "  
                         f"best_{tag}_reward: {'%.3f' % self.best_eval_reward if tag == 'eval' else '%.3f' % self.best_train_reward} "
+                        f"efficiency: {'%.3f' % (np.sum(collect_data_ratio_list) * (1 - np.mean(loss_ratio_list)) * fairness / np.mean(energy_consumption_ratio_list))} "
                         f"collect_data_ratio: {'%.3f' % np.sum(collect_data_ratio_list)} "
                         f"loss_ratio: {'%.3f' % np.mean(loss_ratio_list)} "
                         f"fairness: {'%.3f' % fairness} "
