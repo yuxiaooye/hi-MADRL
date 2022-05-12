@@ -5,8 +5,7 @@
       <paths name="liuchi@10.1.114.56:22">
         <serverdata>
           <mappings>
-            <mapping deploy="/home/liuchi/yeyuxiao/hi-MADRL/runs" local="$PROJECT_DIR$/runs" web="/" />
-            <mapping deploy="/home/liuchi/yeyuxiao/hi-MADRL/runs/source_code" local="$PROJECT_DIR$/source_code" />
+            <mapping deploy="/home/liuchi/yeyuxiao/hi-MADRL/source_code" local="$PROJECT_DIR$" web="/" />
           </mappings>
         </serverdata>
       </paths>

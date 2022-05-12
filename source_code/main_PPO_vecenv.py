@@ -158,17 +158,17 @@ def main(args):
     use_eoi, use_copo, use_ccobs, eoi_kind, copo_kind, share_parameter = args.use_eoi, args.use_copo, args.use_ccobs, args.eoi_kind, args.copo_kind, args.share_parameter
     n_rollout_threads = args.n_rollout_threads
 
-    if not test:  # testoutput_dir
+    if not test:
         timestr = datetime.strftime(datetime.now(), "%Y-%m-%d_%H-%M-%S")
         output_dir = args.output_dir + '/' + timestr
-        if args.n_rollout_threads != 32:
-            output_dir += f'_threads={args.n_rollout_threads}'
+        # if args.n_rollout_threads != 32:
+        #     output_dir += f'_threads={args.n_rollout_threads}'
         if use_eoi:
             output_dir += f'_UseEoi{args.eoi_kind}'
         if args.eoi_kind == 1 and args.eoi1_ER != 0.2:
             output_dir += f'_ER={args.eoi1_ER}'
-        if args.eoi_kind == 3 and args.eoi3_coef != 0.01:
-            output_dir += f'_EoiCoef={args.eoi3_coef}'
+        # if args.eoi_kind == 3 and args.eoi3_coef != 0.01:
+        #     output_dir += f'_EoiCoef={args.eoi3_coef}'
         if use_copo:
             output_dir += f'_UseCopo{args.copo_kind}'
         if use_copo and args.copo_kind == 2:
@@ -176,9 +176,8 @@ def main(args):
                 output_dir += f'_HIDPhi={args.HID_phi}'
             if args.HID_theta != [45, 45]:
                 output_dir += f'_HIDTheta={args.HID_theta}'
-
-            if not args.hcopo_shift:
-                output_dir += f'_NotHShift'
+            if args.hcopo_shift:  # TODO 5_12 16:00
+                output_dir += f'_HShift'
         if share_parameter:
             output_dir += '_ShareParam'
         if args.share_layer:
@@ -231,8 +230,8 @@ def main(args):
             output_dir += f'_NotHcopoSqrt2Scale'
         if not args.our_vital_debug:
             output_dir += f'_NotOurVitalDebug'
-        if args.Max_train_steps != 1e6:
-            output_dir += f'_MaxTrainSteps={args.Max_train_steps}'
+        # if args.Max_train_steps != 1e6:
+        #     output_dir += f'_MaxTrainSteps={args.Max_train_steps}'
         if args.svo_frozen:
             output_dir += f'_SvoFrozen'
         if args.use_wrapper2:

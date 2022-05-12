@@ -153,7 +153,7 @@ class Hybrid_PPO_base():
                 deg2pp_sgm = {90: 0.0, 60: -0.7}
                 deg2tp_sgm = {45: 0.0, 15: -0.7, 30: -0.35, 60: 0.35}
             else:
-                deg2pp_sgm = {90: 8.0}
+                deg2pp_sgm = {90: 8.0, 0: -8.0}  # 0: -8.0 is add in 5/7
                 deg2tp_sgm = {45: -1.9450, 135: -0.5108, 315: 1.9460}
             if self.share_parameter:
                 pass
@@ -379,9 +379,9 @@ class Hybrid_PPO_base():
                 used_svo = self.svo[i] * np.pi / 2  # (-1,1)tensor(-pi/2, pi/2)
                 used_svo = used_svo.cpu().detach().numpy()  # svoco_adv
                 if self.use_eoi3:  # 4/5Our Solution
-                    co_adv = np.sin(used_svo) * shaping_adv_list[i] + np.cos(used_svo) * nei_adv_list[i]
+                    co_adv = np.cos(used_svo) * shaping_adv_list[i] + np.sin(used_svo) * nei_adv_list[i]
                 else:
-                    co_adv = np.sin(used_svo) * adv_list[i] + np.cos(used_svo) * nei_adv_list[i]
+                    co_adv = np.cos(used_svo) * adv_list[i] + np.sin(used_svo) * nei_adv_list[i]
                 co_adv_list.append(co_adv)
                 # adv_listnei_adv_list！svo
                 # normalize advs!
@@ -398,13 +398,13 @@ class Hybrid_PPO_base():
                     phi_rad = (self.phi[i] * np.pi / 2).cpu().detach().numpy()  # (0,1)(0, pi/2)
                     theta_rad = (self.theta[i] * np.pi * 2).cpu().detach().numpy()  # (0,1)(0, 2*pi)
                 if self.hcopo_sqrt2_scale:
-                    nei = np.sqrt(2) * np.sin(theta_rad) * uav_adv_list[i] + np.cos(theta_rad) * car_adv_list[i]
+                    nei = np.sqrt(2) * np.cos(theta_rad) * uav_adv_list[i] + np.sin(theta_rad) * car_adv_list[i]
                 else:
-                    nei = np.sin(theta_rad) * uav_adv_list[i] + np.cos(theta_rad) * car_adv_list[i]
+                    nei = np.cos(theta_rad) * uav_adv_list[i] + np.sin(theta_rad) * car_adv_list[i]
                 if self.use_eoi3:  # 4/5Our Solution
-                    co_adv = np.sin(phi_rad) * shaping_adv_list[i] + np.cos(phi_rad) * nei
+                    co_adv = np.cos(phi_rad) * shaping_adv_list[i] + np.sin(phi_rad) * nei
                 else:
-                    co_adv = np.sin(phi_rad) * adv_list[i] + np.cos(phi_rad) * nei
+                    co_adv = np.cos(phi_rad) * adv_list[i] + np.sin(phi_rad) * nei
                 co_adv_list.append(co_adv)
             global_adv_list, _, _ = normalize(global_adv_list)  #
             co_adv_list, raw_co_adv_mean, raw_co_adv_std = normalize(co_adv_list)  # actor, svo
