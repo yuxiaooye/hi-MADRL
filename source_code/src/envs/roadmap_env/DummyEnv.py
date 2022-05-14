@@ -40,24 +40,16 @@ class DummyEnv(BaseRoadmapEnv):
         collect_data_ratio_list = []
         energy_consumption_ratio_list = []
         have_nei_freq_list = []
-        # avail_act_prop_list = []
         fairness = None
-        uav_util_factor = None
         for k in self.agent_name_list:
             loss_ratio_list.append(last_info[k]['loss_ratio'])
             collect_data_ratio_list.append(last_info[k]['collect_data_ratio'])
             energy_consumption_ratio_list.append(last_info[k]['energy_consumption_ratio'])
             have_nei_freq_list.append(last_info[k].get('have_nei_freq', 0.0))  # IPPO metric0
-            # if k.startswith('car'):
-            #     avail_act_prop_list.append(last_info[k]['avail_act_prop'])
             if fairness is None:
                 fairness = last_info[k]['fairness']
             else:
                 assert fairness == last_info[k]['fairness']
-            if uav_util_factor is None:
-                uav_util_factor = last_info[k]['uav_util_factor']
-            else:
-                assert uav_util_factor == last_info[k]['uav_util_factor']
 
         if test:
             logging_path = os.path.join(self.output_dir, f'test_output.txt')
@@ -68,7 +60,6 @@ class DummyEnv(BaseRoadmapEnv):
                         f"collect_data_ratio: {'%.3f' % np.sum(collect_data_ratio_list)} "
                         f"loss_ratio: {'%.3f' % np.mean(loss_ratio_list)} "
                         f"fairness: {'%.3f' % fairness} "
-                        f"uav_util_factor: {'%.3f' % uav_util_factor} "
                         f"energy_consumption_ratio: {'%.3f' % np.mean(energy_consumption_ratio_list)} "
                         + '\n'
                         )
@@ -78,7 +69,6 @@ class DummyEnv(BaseRoadmapEnv):
                 f"collect_data_ratio: {'%.3f' % np.sum(collect_data_ratio_list)} ",
                 f"loss_ratio: {'%.3f' % np.mean(loss_ratio_list)} ",
                 f"fairness: {'%.3f' % fairness} ",
-                f"uav_util_factor: {'%.3f' % uav_util_factor} ",
                 f"energy_consumption_ratio: {'%.3f' % np.mean(energy_consumption_ratio_list)} ",
             )
 
@@ -88,7 +78,6 @@ class DummyEnv(BaseRoadmapEnv):
             writer.add_scalar(f'{tag}/loss_ratio', np.mean(loss_ratio_list), total_steps)  # >0
             writer.add_scalar(f'{tag}/energy_consumption_ratio', np.mean(energy_consumption_ratio_list), total_steps)  # 0-1
             writer.add_scalar(f'{tag}/fairness', fairness, total_steps)
-            writer.add_scalar(f'{tag}/uav_util_factor', uav_util_factor, total_steps)
             writer.add_scalar(f'{tag}/have_nei_freq', np.mean(have_nei_freq_list), total_steps)  # 0-1
             # writer.add_scalar(f'{tag}/avail_act_prop', np.mean(avail_act_prop_list), total_steps)
 
@@ -124,7 +113,6 @@ class DummyEnv(BaseRoadmapEnv):
                         f"collect_data_ratio: {'%.3f' % np.sum(collect_data_ratio_list)} "
                         f"loss_ratio: {'%.3f' % np.mean(loss_ratio_list)} "
                         f"fairness: {'%.3f' % fairness} "
-                        f"uav_util_factor: {'%.3f' % uav_util_factor} "
                         f"energy_consumption_ratio: {'%.3f' % np.mean(energy_consumption_ratio_list)} "
                         + '\n'
                         )
@@ -136,6 +124,9 @@ class DummyEnv(BaseRoadmapEnv):
                         phis, thetas = svo_dict['phi'], svo_dict['theta']
                         if self.args.hcopo_shift:
                             f.write(f'phi degree corresponds to best model: {np.round([phi.item() * 180 for phi in phis], 3)}' + '\n')
+                            f.write(f'theta degree corresponds to best model: {np.round([theta.item() * 180 - 45 for theta in thetas], 3)}' + '\n')
+                        elif self.args.hcopo_shift_513:
+                            f.write(f'phi degree corresponds to best model: {np.round([phi.item() * 180 - 90 for phi in phis], 3)}' + '\n')
                             f.write(f'theta degree corresponds to best model: {np.round([theta.item() * 180 - 45 for theta in thetas], 3)}' + '\n')
                         else:
                             f.write(f'phi degree corresponds to best model: {np.round([phi.item() * 90 for phi in phis], 3)}' + '\n')
@@ -159,7 +150,6 @@ class DummyEnv(BaseRoadmapEnv):
             loss_ratio_list = []  # for each agents
             energy_consumption_ratio_list = []
             fairness = None
-            uav_util_factor = None
             for k in self.agent_name_list:
                 loss_ratio_list.append(last_info[k]['loss_ratio'])
                 collect_data_ratio_list.append(last_info[k]['collect_data_ratio'])
@@ -168,16 +158,11 @@ class DummyEnv(BaseRoadmapEnv):
                     fairness = last_info[k]['fairness']
                 else:
                     assert fairness == last_info[k]['fairness']
-                if uav_util_factor is None:
-                    uav_util_factor = last_info[k]['uav_util_factor']
-                else:
-                    assert uav_util_factor == last_info[k]['uav_util_factor']
 
             ratios[episode] = np.sum(collect_data_ratio_list)
             losses[episode] = np.mean(loss_ratio_list)
             energies[episode] = np.mean(energy_consumption_ratio_list)
             fairnesses[episode] = fairness
-            UUFs[episode] = uav_util_factor
 
         # test_episodeefficiency
         def get_effs():

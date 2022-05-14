@@ -172,12 +172,14 @@ def main(args):
         if use_copo:
             output_dir += f'_UseCopo{args.copo_kind}'
         if use_copo and args.copo_kind == 2:
-            if args.HID_phi != [90, 90]:
+            if args.HID_phi != [0, 0]:  # TODO 5_7
                 output_dir += f'_HIDPhi={args.HID_phi}'
             if args.HID_theta != [45, 45]:
                 output_dir += f'_HIDTheta={args.HID_theta}'
             if args.hcopo_shift:  # TODO 5_12 16:00
                 output_dir += f'_HShift'
+            if args.hcopo_shift_513:  # TODO 5_13 17:30
+                output_dir += f'_HShift513'
         if share_parameter:
             output_dir += '_ShareParam'
         if args.share_layer:
@@ -264,7 +266,7 @@ def main(args):
     rllib_env_config['args'] = args
 
     if args.lets_move:
-        rllib_env_config['debug_kaolv_return_to_zero_list'] = False
+        rllib_env_config['debug_consider_return_to_zero_list'] = False
     if use_copo:
         rllib_env_config.update(main_copo_config)
 
@@ -315,6 +317,7 @@ def main(args):
         "copo_kind": copo_kind,
         "svo_lr": args.svo_lr,
         "hcopo_shift": args.hcopo_shift,
+        "hcopo_shift_513": args.hcopo_shift_513,
         "obs_dim": envs.observation_space.shape[0],
         "uav_continuous_action_dim": envs.action_space['uav'].shape[0],
         "car_discrete_action_dim": envs.action_space['car'].n,

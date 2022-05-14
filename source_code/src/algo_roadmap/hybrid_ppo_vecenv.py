@@ -441,6 +441,9 @@ class VecHybridPPO(Hybrid_PPO_base):
                     if self.hcopo_shift:
                         self.writer.add_scalar(f'agent{i}/phi_degree', self.phi[i].item() * 180, timesteps)
                         self.writer.add_scalar(f'agent{i}/theta_degree', self.theta[i].item() * 180 - 45, timesteps)
+                    elif self.hcopo_shift_513:
+                        self.writer.add_scalar(f'agent{i}/phi_degree', self.phi[i].item() * 180 - 90, timesteps)
+                        self.writer.add_scalar(f'agent{i}/theta_degree', self.theta[i].item() * 180 - 45, timesteps)
                     else:
                         self.writer.add_scalar(f'agent{i}/phi_degree', self.phi[i].item() * 90, timesteps)
                         self.writer.add_scalar(f'agent{i}/theta_degree', self.theta[i].item() * 360, timesteps)
@@ -548,6 +551,9 @@ class VecHybridPPO(Hybrid_PPO_base):
             if self.hcopo_shift:
                 phi_rad = self.phi[i] * np.pi
                 theta_rad = self.theta[i] * np.pi - np.pi / 4
+            elif self.hcopo_shift_513:
+                phi_rad = self.phi[i] * np.pi - np.pi / 2
+                theta_rad = self.theta[i] * np.pi - np.pi / 4
             else:
                 phi_rad = self.phi[i] * np.pi / 2
                 theta_rad = self.theta[i] * np.pi * 2
@@ -614,8 +620,11 @@ class VecHybridPPO(Hybrid_PPO_base):
             self.phi_opt[i].step()
             self.theta_opt[i].step()
             # assign
-            if self.hcopo_shift:   # clamp
+            if self.hcopo_shift:   # clamp to (-∞, 0)
                 self.phi_param[i].data = torch.clamp(self.phi_param[i].data, float('-inf'), 0)
+            elif self.hcopo_shift_513:  # clamp (0, +∞)
+                self.phi_param[i].data = torch.clamp(self.phi_param[i].data, 0, float('inf'))
+
             self.phi[i] = torch.clamp(torch.sigmoid(self.phi_param[i]), 0 + 1e-6, 1 - 1e-6)
             self.theta[i] = torch.clamp(torch.sigmoid(self.theta_param[i]), 0 + 1e-6, 1 - 1e-6)
             # zero grad

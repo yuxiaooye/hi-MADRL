@@ -27,6 +27,7 @@ class Hybrid_PPO_base():
                  eoi_kind,
                  copo_kind,
                  hcopo_shift,
+                 hcopo_shift_513,
                  obs_dim,
                  uav_continuous_action_dim,
                  car_discrete_action_dim,
@@ -85,6 +86,7 @@ class Hybrid_PPO_base():
         self.use_copo2 = use_copo and copo_kind == 2
         self.copo_kind = copo_kind
         self.hcopo_shift = hcopo_shift
+        self.hcopo_shift_513 = hcopo_shift_513
         self.n_agent = n_agent
         self.n_uav = n_uav
         self.n_car = n_car
@@ -122,8 +124,8 @@ class Hybrid_PPO_base():
         self.initial_svo_degree = initial_svo_degree
         self.our_vital_debug = our_vital_debug
         self.svo_frozen = svo_frozen
-
         self.timesteps = None
+        assert not (self.hcopo_shift and self.hcopo_shift_513)
 
         '''EOI_net'''
         # agent
@@ -149,9 +151,13 @@ class Hybrid_PPO_base():
             svo_init = deg2sp_tanh.get(initial_svo_degree, 0.0)
         if self.use_copo2:
             if self.hcopo_shift:
-                # paramthetaphi45
+                # degree to phi_param, by sigmoid
                 deg2pp_sgm = {90: 0.0, 60: -0.7}
+                # degree to theta_param, by sigmoid
                 deg2tp_sgm = {45: 0.0, 15: -0.7, 30: -0.35, 60: 0.35}
+            elif self.hcopo_shift_513:
+                deg2pp_sgm = {0: 0.0}
+                deg2tp_sgm = {45: 0.0}
             else:
                 deg2pp_sgm = {90: 8.0, 0: -8.0}  # 0: -8.0 is add in 5/7
                 deg2tp_sgm = {45: -1.9450, 135: -0.5108, 315: 1.9460}
@@ -162,8 +168,16 @@ class Hybrid_PPO_base():
                 initial_theta_degree = [self.HID_theta[0] for _ in range(self.n_uav)] + [self.HID_theta[1] for _ in range(self.n_car)]  # OK
                 phi_init = [deg2pp_sgm.get(initial_phi_degree[i]) for i in range(self.n_agent)]
                 theta_init = [deg2tp_sgm.get(initial_theta_degree[i]) for i in range(self.n_agent)]
-                print('phi', torch.sigmoid(torch.tensor(phi_init)) * 180)
-                print('theta', torch.sigmoid(torch.tensor(theta_init)) * 180 - 45)
+                if self.hcopo_shift:
+                    print('initial value of phi(degree):', torch.sigmoid(torch.tensor(phi_init)) * 180)
+                    print('initial value of theta(degree):', torch.sigmoid(torch.tensor(theta_init)) * 180 - 45)
+                elif self.hcopo_shift_513:
+                    print('initial value of phi(degree):', torch.sigmoid(torch.tensor(phi_init)) * 180 - 90)
+                    print('initial value of theta(degree):', torch.sigmoid(torch.tensor(theta_init)) * 180 - 45)
+                else:
+                    print('initial value of phi(degree):', torch.sigmoid(torch.tensor(phi_init)) * 90)
+                    print('initial value of theta(degree):', torch.sigmoid(torch.tensor(theta_init)) * 360)
+
 
         if self.share_parameter:
             raise ValueError()
@@ -392,11 +406,14 @@ class Hybrid_PPO_base():
             co_adv_list = []
             for i in range(self.n_agent):
                 if self.hcopo_shift:
-                    phi_rad = (self.phi[i] * np.pi).cpu().detach().numpy()  # (0,1/2)(0, pi/2)
-                    theta_rad = (self.theta[i] * np.pi - np.pi / 4).cpu().detach().numpy()  # (0,1)(-pi/4, 3pi/4)
+                    phi_rad = (self.phi[i] * np.pi).cpu().detach().numpy()  # from (0,1/2) to (0, pi/2)
+                    theta_rad = (self.theta[i] * np.pi - np.pi / 4).cpu().detach().numpy()  # from (0,1) to (-pi/4, 3pi/4)
+                elif self.hcopo_shift_513:
+                    phi_rad = (self.phi[i] * np.pi - np.pi / 2).cpu().detach().numpy()  # from (1/2,1) to (0, pi/2)
+                    theta_rad = (self.theta[i] * np.pi - np.pi / 4).cpu().detach().numpy()  # from (0,1) to (-pi/4, 3pi/4)
                 else:
-                    phi_rad = (self.phi[i] * np.pi / 2).cpu().detach().numpy()  # (0,1)(0, pi/2)
-                    theta_rad = (self.theta[i] * np.pi * 2).cpu().detach().numpy()  # (0,1)(0, 2*pi)
+                    phi_rad = (self.phi[i] * np.pi / 2).cpu().detach().numpy()  # from (0,1) to (0, pi/2)
+                    theta_rad = (self.theta[i] * np.pi * 2).cpu().detach().numpy()  # from (0,1) to (0, 2*pi)
                 if self.hcopo_sqrt2_scale:
                     nei = np.sqrt(2) * np.cos(theta_rad) * uav_adv_list[i] + np.sin(theta_rad) * car_adv_list[i]
                 else:

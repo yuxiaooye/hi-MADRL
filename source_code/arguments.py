@@ -44,6 +44,7 @@ def add_args(parser):
     # svo
     parser.add_argument('--copo_kind', type=int, default=1, help='1: copo 2: hetero-copo')
     parser.add_argument('--hcopo_shift', default=False, action='store_true')  # TODO 5_12 16:00
+    parser.add_argument('--hcopo_shift_513', default=False, action='store_true')  # TODO 513 17:30 initial degree of phi is 0 instead of 90
     parser.add_argument('--share_layer', action='store_true', default=False, help="if True, share layers of 1 actor and 3 critics in copo. only work when share_parameter=False")
     parser.add_argument('--HID_phi', default=[0, 0], nargs='+', type=int)  # 5/7 debug
     parser.add_argument('--HID_theta', default=[45, 45], nargs='+', type=int)

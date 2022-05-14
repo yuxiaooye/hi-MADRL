@@ -59,7 +59,7 @@ class BaseRoadmapEnv():
         self.partial_obs = rllib_env_config['partial_obs']
         self.use_reward_shaping = rllib_env_config['use_reward_shaping']
         self.energy_factor = rllib_env_config['energy_factor']
-        self.debug_kaolv_return_to_zero_list = rllib_env_config['debug_kaolv_return_to_zero_list']
+        self.debug_consider_return_to_zero_list = rllib_env_config['debug_consider_return_to_zero_list']
         self.use_shared_parameters = rllib_env_config.get('use_shared_parameters')  # single agent
         self.add_svo_in_obs = rllib_env_config.get('add_svo_in_obs')  # IPPO
         self.debug_use_nei_max_distance = rllib_env_config.get('debug_use_nei_max_distance')  # IPPO
@@ -443,12 +443,12 @@ class BaseRoadmapEnv():
 
         for i, uav in enumerate(self.uavs):
             dis_list = np.array([max(1, compute_distance(uav, human)) for human in self.humans])
-            if self.debug_kaolv_return_to_zero_list:
+            if self.debug_consider_return_to_zero_list:
                 dis_list[self.return_to_zero_list] = float('inf')  # return_to_zero_list, 
             sorted_uav_access[i] = np.argsort(dis_list)[:self.num_subchannel]
         for i, car in enumerate(self.cars):
             dis_list = np.array([max(1, compute_distance(car, human)) for human in self.humans])
-            if self.debug_kaolv_return_to_zero_list:
+            if self.debug_consider_return_to_zero_list:
                 dis_list[self.return_to_zero_list] = float('inf')
             sorted_car_access[i] = np.argsort(dis_list)[:self.num_subchannel]
         return sorted_uav_access, sorted_car_access
@@ -520,7 +520,7 @@ class BaseRoadmapEnv():
                     self.ep_succ_uav_car_dis.append(compute_distance(uav, car))
                     # ==
                     human_i.data -= throughput_i
-                    if self.debug_kaolv_return_to_zero_list and human_i.data == 0:  # return_to_zero_list
+                    if self.debug_consider_return_to_zero_list and human_i.data == 0:  # return_to_zero_list
                         self.return_to_zero_list.append(poi_i)
                     r = throughput_i / self.total_data_amount
                     rewards[agent_name] += self.shaping1(r, (human_i.px, human_i.py, 0))
@@ -546,7 +546,7 @@ class BaseRoadmapEnv():
                     self.ep_succ_uav_car_dis.append(compute_distance(uav, car))
                     # ==
                     human_j.data -= throughput_j
-                    if self.debug_kaolv_return_to_zero_list and human_j.data == 0:  # return_to_zero_list
+                    if self.debug_consider_return_to_zero_list and human_j.data == 0:  # return_to_zero_list
                         self.return_to_zero_list.append(poi_j)
                     r = throughput_j / self.total_data_amount
                     rewards[agent_name] += self.shaping1(r, (human_j.px, human_j.py, 0))

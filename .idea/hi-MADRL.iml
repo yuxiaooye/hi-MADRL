@@ -5,7 +5,7 @@
       <sourceFolder url="file://$MODULE_DIR$/source_code" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/runs" />
     </content>
-    <orderEntry type="inheritedJdk" />
+    <orderEntry type="jdk" jdkName="Python 3.9 (hi-MADRL)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
   <component name="PyDocumentationSettings">
