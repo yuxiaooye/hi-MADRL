@@ -61,8 +61,4 @@ python tools/post/vis_gif.py --output_dir <OUTPUT_DIR>
 --group_save_dir <OUTPUT_DIR>
 ```
 
-then a .html file is generated:
-
-![image-20220515012755862](C:/Users/Administrator/AppData/Roaming/Typora/typora-user-images/image-20220515012755862.png)
-
-you can drag the control panel at lower left corner to see how UVs move.
+then a .html file is generated, you can drag the control panel at lower left corner to see how UVs move.
