@@ -9,7 +9,6 @@ import math
 
 class ShareLayerCopoModel(nn.Module):
     def __init__(self, obs_dim, action_dim, net_width, copo_kind):
-        # TODO  
         '''hcopofunc()
         copo: mu, sigma, value, nei, global
         hcopo: mu, sigma, value, uav, car, global

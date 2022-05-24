@@ -40,7 +40,7 @@ def evaluate_policy(envs, dummy_env, agent, total_timesteps, writer, test, use_e
         global_done = False
         while not global_done:
             if test:
-                a_list, _ = agent.select_action_for_vec_2(obs, mask, mode="run")  # TODO teststochastic"run"
+                a_list, _ = agent.select_action_for_vec_2(obs, mask, mode="run")
             else:
                 a_list, _ = agent.select_action_for_vec_2(obs, mask, mode="eval")  # Take deterministic actions at test time
             action_dict = li2di_vec(a_list, dummy_env.agent_name_list)
@@ -144,10 +144,6 @@ def main(args):
         args.n_rollout_threads = 1
         args.eval_interval = 1
 
-    if args.use_only_one_mini_batch:
-        args.batch_size = args.T_horizon
-
-    #
     if args.gr == 50:
         args.type2_act_dim = 20
     elif args.gr == 100:
@@ -165,20 +161,16 @@ def main(args):
         #     output_dir += f'_threads={args.n_rollout_threads}'
         if use_eoi:
             output_dir += f'_UseEoi{args.eoi_kind}'
-        if args.eoi_kind == 1 and args.eoi1_ER != 0.2:
-            output_dir += f'_ER={args.eoi1_ER}'
-        # if args.eoi_kind == 3 and args.eoi3_coef != 0.01:
-        #     output_dir += f'_EoiCoef={args.eoi3_coef}'
         if use_copo:
             output_dir += f'_UseCopo{args.copo_kind}'
         if use_copo and args.copo_kind == 2:
-            if args.HID_phi != [0, 0]:  # TODO 5_7
+            if args.HID_phi != [0, 0]:
                 output_dir += f'_HIDPhi={args.HID_phi}'
             if args.HID_theta != [45, 45]:
                 output_dir += f'_HIDTheta={args.HID_theta}'
-            if args.hcopo_shift:  # TODO 5_12 16:00
+            if args.hcopo_shift:
                 output_dir += f'_HShift'
-            if args.hcopo_shift_513:  # TODO 5_13 17:30
+            if args.hcopo_shift_513:
                 output_dir += f'_HShift513'
         if share_parameter:
             output_dir += '_ShareParam'
@@ -190,34 +182,12 @@ def main(args):
             output_dir += f'_{args.dist}'
         if args.type2_act_dim != 10:
             output_dir += f'_Act{args.type2_act_dim}'
-        if args.type2_act_sortkey != 'dis':
-            output_dir += f'_ActSortKey={args.type2_act_dim}'
-        if args.search_scale != 0.8:
-            output_dir += f'_ss={args.search_scale}'
-        if args.ss_decay != 0.75:
-            output_dir += f'_ssdecay={args.ss_decay}'
-        if args.action_space_type != 2:
-            output_dir += f'_ActSpaceType={args.action_space_type}'
         if args.gr != 200:
             output_dir += f'_GR={args.gr}'
-        if args.delete_theta == True:  # 4/4 try1
-            output_dir += f'_DeleteTheta'
         if args.eoi_coef_decay != 1.0:  # 4/4 try2
             output_dir += f'_EoiCoefDecay={args.eoi_coef_decay}'
-        if args.nei_type != 3:
-            output_dir += f'_CopoNeiType={args.nei_type}'
         if args.entropy_coef != 1e-3:
             output_dir += f'_EntropyCoef={args.entropy_coef}'
-        if args.how_set_1_cpu != 0:
-            output_dir += f'_HowSet1GPU={args.how_set_1_cpu}'
-        if args.use_only_one_mini_batch:
-            output_dir += '_OnlyOneMiniBatch'
-        if args.buffer_type != 1:
-            output_dir += f'_BufferType={args.buffer_type}'
-        if args.select_action_type != 2:
-            output_dir += f'_SelectActionType={args.select_action_type}'
-        if not args.eoi_faster:
-            output_dir += f'_NotEoiFaster'
         if args.batch_size != 64:
             output_dir += f'_BatchSize={args.batch_size}'
         if args.net_width != 150:
@@ -226,22 +196,12 @@ def main(args):
             output_dir += f'_SVOLR={args.svo_lr}'
         if args.nei_dis_scale != 0.25:
             output_dir += f'_NeiDisScale={args.nei_dis_scale}'
-        if args.hcopo_grad_minus:
-            output_dir += f'_HcopoGradMinus'
         if not args.hcopo_sqrt2_scale:
             output_dir += f'_NotHcopoSqrt2Scale'
-        if not args.our_vital_debug:
-            output_dir += f'_NotOurVitalDebug'
-        # if args.Max_train_steps != 1e6:
-        #     output_dir += f'_MaxTrainSteps={args.Max_train_steps}'
         if args.svo_frozen:
             output_dir += f'_SvoFrozen'
-        if args.use_wrapper2:
-            output_dir += f'_UseWrapper2'
-        if args.wrapper2_scale != -1:
-            output_dir += f'_WP2Scale={args.wrapper2_scale}'
 
-        #
+
         if args.num_uv is not None:
             output_dir += f'_NU={args.num_uv}'
         if args.sinr_demand is not None:
@@ -260,13 +220,9 @@ def main(args):
     args = fillin_lazy_args(args, dataset_str=args.dataset)
     my_env_config = import_env_config(args.config_dir)
     my_env_config = env_config_wrapper(my_env_config, args.num_uv, args.sinr_demand, args.num_subchannel, args.uav_height)
-    if args.use_copo and args.copo_kind == 2 and args.use_wrapper2:
-        my_env_config = env_config_wrapper2(my_env_config, args.wrapper2_scale)
     rllib_env_config['my_env_config'] = my_env_config
     rllib_env_config['args'] = args
 
-    if args.lets_move:
-        rllib_env_config['debug_consider_return_to_zero_list'] = False
     if use_copo:
         rllib_env_config.update(main_copo_config)
 
@@ -304,8 +260,6 @@ def main(args):
         "output_dir": args.output_dir,
         "device": device,
         "writer": writer,
-        "buffer_type": args.buffer_type,
-        "eoi_faster": args.eoi_faster,
         "T_horizon": T_horizon,
         "n_rollout_threads": n_rollout_threads,
         "share_parameter": share_parameter,
@@ -340,15 +294,12 @@ def main(args):
         "entropy_coef": args.entropy_coef,  # Entropy Loss for Actor: Large entropy_coef for large exploration, but is harm for convergence.
         "entropy_coef_decay": args.entropy_coef_decay,
         "vf_coef": args.vf_coef,  # TBD rllib
-        "eoi1_ER": args.eoi1_ER,
         "eoi3_coef": args.eoi3_coef,
         "eoi_coef_decay": args.eoi_coef_decay,
         # "use_o_prime_compute_ir": args.use_o_prime_compute_ir,
         "HID_phi": args.HID_phi,
         "HID_theta": args.HID_theta,
-        "hcopo_grad_minus": args.hcopo_grad_minus,
         "hcopo_sqrt2_scale": args.hcopo_sqrt2_scale,
-        "our_vital_debug": args.our_vital_debug,
         "svo_frozen": args.svo_frozen
     }
     # if Dist[distnum] == 'Beta' :
@@ -377,12 +328,8 @@ def main(args):
     while total_steps < Max_train_steps:
         if print_count // (Max_train_steps // 20) >= 1:  # 20ts
             print(f'timestep = {total_steps}...')
-            if args.buffer_type == 1:
-                print_count -= (Max_train_steps // 20)
-            elif args.buffer_type == 2:
-                print_count = 0
-            else:
-                raise ValueError()
+            print_count -= (Max_train_steps // 20)
+
             print(f'timesteps {total_steps} ...')
         obs_dict, mask = envs.reset()
         obs = np.array(di2li_vec(obs_dict))  # shape = (n_rollout_threads, num_agent)
@@ -424,12 +371,8 @@ def main(args):
             if not test:
                 if train_count // T_horizon >= 1:
                     my_end_1 = my_start_2 = time.time()
-                    if args.buffer_type == 1:
-                        train_count -= T_horizon
-                    elif args.buffer_type == 2:
-                        train_count = 0  # episode_length = ceil(T_horizon/threads)
-                    else:
-                        raise ValueError()
+                    train_count -= T_horizon
+
                     agent.train(total_steps)
                     if writer:
                         writer.add_scalar('time/rollout_time_sec', my_end_1 - my_start_1, total_steps)
@@ -440,12 +383,8 @@ def main(args):
             '''evaluate & log'''
             if eval_count // eval_interval >= 1:
                 my_start_4 = time.time()
-                if args.buffer_type == 1:
-                    eval_count -= eval_interval
-                elif args.buffer_type == 2:
-                    eval_count = 0
-                else:
-                    raise ValueError()
+                eval_count -= eval_interval
+
                 eval_ep_r = evaluate_policy(eval_envs, dummy_env, agent, total_steps, writer, test, use_eoi, num_episode=args.num_test_episode)
                 print('[' + datetime.strftime(datetime.now(), "%Y-%m-%d_%H-%M-%S") + ']')
                 print('seed:', random_seed, 'steps: {}k'.format(int(total_steps / 1000)), 'eval episode reward:', eval_ep_r)
@@ -460,12 +399,8 @@ def main(args):
             if not test and save_count // save_interval >= 1:
                 my_start_3 = time.time()
                 agent.save(total_steps, is_evaluate=False)
-                if args.buffer_type == 1:
-                    save_count -= save_interval
-                elif args.buffer_type == 2:
-                    save_count = 0
-                else:
-                    raise ValueError()
+                save_count -= save_interval
+
                 my_end_3 = time.time()
                 if writer:
                     writer.add_scalar('time/save_time_sec', my_end_3 - my_start_3, total_steps)
@@ -504,19 +439,5 @@ if __name__ == '__main__':
     else:
         print('choose use cpu...')
         device = torch.device("cpu")
-
-    if args.how_set_1_cpu == 1:
-        threads_num = 1  # cpu1
-        # os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-        os.environ['MKL_NUM_THREADS'] = str(threads_num)
-        os.environ['NUMEXPR_MAX_THREADS'] = str(threads_num)
-        os.environ['OPENBLAS_NUM_THREADS'] = str(threads_num)
-        os.environ['VECLIB_MAXIMUM_THREADS'] = str(threads_num)
-        os.environ['NUMEXPR_NUM_THREADS'] = str(threads_num)
-        os.environ['OMP_NUM_THREADS'] = str(threads_num)
-    elif args.how_set_1_cpu == 2:
-        torch.set_num_threads(1)
-    else:
-        pass
 
     main(args)

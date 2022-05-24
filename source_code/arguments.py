@@ -37,31 +37,23 @@ def add_args(parser):
     parser.add_argument('--use_copo', action='store_true', default=False)
     parser.add_argument('--use_hcopo', action='store_true', default=False)
     parser.add_argument('--eoi_kind', type=int, default=3, )
-    parser.add_argument('--eoi1_ER', type=float, default=0.2, )
     parser.add_argument('--eoi3_coef', type=float, default=0.003, )
     parser.add_argument('--eoi_coef_decay', type=float, default=1.0, )
 
     # svo
     parser.add_argument('--copo_kind', type=int, default=1, help='1: copo 2: hetero-copo')
-    parser.add_argument('--hcopo_shift', default=False, action='store_true')  # TODO 5_12 16:00
-    parser.add_argument('--hcopo_shift_513', default=False, action='store_true')  # TODO 513 17:30 initial degree of phi is 0 instead of 90
+    parser.add_argument('--hcopo_shift', default=False, action='store_true')
+    parser.add_argument('--hcopo_shift_513', default=False, action='store_true')
     parser.add_argument('--share_layer', action='store_true', default=False, help="if True, share layers of 1 actor and 3 critics in copo. only work when share_parameter=False")
-    parser.add_argument('--HID_phi', default=[0, 0], nargs='+', type=int)  # 5/7 debug
+    parser.add_argument('--HID_phi', default=[0, 0], nargs='+', type=int)
     parser.add_argument('--HID_theta', default=[45, 45], nargs='+', type=int)
     parser.add_argument('--svo_lr', default=1e-4, type=float)
-    parser.add_argument('--nei_type', default=3, choices=[1, 2, 3, 4], type=int)
     parser.add_argument('--nei_dis_scale', default=0.25, type=float)
-    parser.add_argument('--hcopo_grad_minus', default=False, action='store_true')
     parser.add_argument('--hcopo_sqrt2_scale', default=True, action='store_false')
     parser.add_argument('--svo_frozen', default=False, action='store_true')
 
     # env
-    parser.add_argument('--lets_move', action='store_true', default=False)
-    parser.add_argument('--action_space_type', type=int, default=2, choices=[1, 2, 3])
     parser.add_argument('--type2_act_dim', type=int, default=20)
-    parser.add_argument('--type2_act_sortkey', type=str, default='dis', choices=['dis', 'angle'])
-    parser.add_argument('--type3_act_available_num', type=int, default=20)
-    parser.add_argument('--delete_theta', default=False, action='store_true')
 
     # dir
     parser.add_argument("--dataset", type=str, default='NCSU', choices=['NCSU', 'purdue', 'KAIST'])
@@ -71,24 +63,12 @@ def add_args(parser):
 
     # roadmap
     parser.add_argument('--roadmap_dir', type=str)
-    parser.add_argument('--search_scale', type=float, default=0.8, )
-    parser.add_argument('--ss_decay', type=float, default=0.75,)
     parser.add_argument('--gr', type=int, default=200, choices=[0, 50, 100, 200],)
     # multi-thread
     parser.add_argument('--n_rollout_threads', type=int, default=32)
-    parser.add_argument('--how_set_1_cpu', type=int, choices=[0, 1, 2], default=0,)
 
-    parser.add_argument('--use_only_one_mini_batch', default=False, action='store_true')
-    parser.add_argument('--buffer_type', type=int, default=1, choices=[1, 2])
-    parser.add_argument('--select_action_type', type=int, default=2, choices=[2], help='mute')
-
-    parser.add_argument('--eoi_faster', default=True, action='store_false')
     # debug
     parser.add_argument('--reward_scale', type=float, default=1)
-    parser.add_argument('--our_vital_debug', default=True, action='store_false')
-    # debug2
-    parser.add_argument('--use_wrapper2', default=False, action='store_true')
-    parser.add_argument('--wrapper2_scale', default=-1, type=float)
 
     parser.add_argument('--num_uv', type=int, default=None)
     parser.add_argument('--sinr_demand', type=float, default=None)

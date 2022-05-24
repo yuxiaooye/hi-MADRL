@@ -37,7 +37,6 @@ class Random():
             entropy_coef=0,  # 0.001
             entropy_coef_decay=0.9998,
             # eoi
-            eoi1_ER=0.4,
             eoi3_coef=0.2,  # TBD 0.2tuning
             # svo
             initial_svo_degree=0.0,
@@ -59,7 +58,7 @@ class Random():
         self.use_copo = use_copo
         self.n_agent = n_agent
         self.n_uav = n_uav
-        self.eoi1_ER = eoi1_ER
+
 
         '''initialize svo'''
         degree2svoparam = {-90: -10.0, -60: -0.8045, -30: -0.3466, 0: 0.0,

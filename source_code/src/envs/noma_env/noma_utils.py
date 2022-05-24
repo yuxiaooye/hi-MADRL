@@ -39,7 +39,7 @@ def compute_channel_gain_G2G(env_config, dis, aG=None):
     '''
     if aG is None:
         aG = env_config['aG']
-    channel_gain_G2G = max(dis, 1.0) ** (-aG)  # TODO 4/21 TSP0, 1
+    channel_gain_G2G = max(dis, 1.0) ** (-aG)
     return channel_gain_G2G
 
 

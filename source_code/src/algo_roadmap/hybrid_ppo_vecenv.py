@@ -15,7 +15,6 @@ class VecHybridPPO(Hybrid_PPO_base):
         if self.share_parameter:
             raise ValueError('')
         else:
-            # TODO Beta,
             self.actor = [BetaActor(self.obs_dim, self.uav_continuous_action_dim, self.net_width).to(self.device) if self.is_uav(i) else
                           DiscreteActor(self.obs_dim, self.car_discrete_action_dim, self.net_width).to(self.device)
                           for i in range(self.n_agent)]
@@ -28,13 +27,6 @@ class VecHybridPPO(Hybrid_PPO_base):
         if self.share_parameter:
             pass
         else:
-            if self.use_eoi1:  # ivf OK
-                self.ivf = [BetaActor(self.obs_dim, self.uav_continuous_action_dim, self.net_width).to(self.device) if self.is_uav(i) else
-                            DiscreteActor(self.obs_dim, self.car_discrete_action_dim, self.net_width).to(self.device)
-                            for i in range(self.n_agent)]
-                self.ivf_optimizer = [torch.optim.Adam(self.ivf[i].parameters(), lr=self.a_lr) for i in range(self.n_agent)]
-                self.ivf_critic = [Critic(self.obs_dim, self.net_width).to(self.device) for _ in range(self.n_agent)]
-                self.ivf_critic_optimizer = [torch.optim.Adam(self.ivf_critic[i].parameters(), lr=self.c_lr) for i in range(self.n_agent)]
             if self.use_copo:
                 self.global_critic = [Critic(self.obs_dim, self.net_width).to(self.device) for _ in range(self.n_agent)]
                 self.global_critic_optimizer = [torch.optim.Adam(self.global_critic[i].parameters(), lr=self.c_lr) for i in range(self.n_agent)]
@@ -52,59 +44,6 @@ class VecHybridPPO(Hybrid_PPO_base):
         self.c_train_steps = 0  # criticmini-batch
 
 
-    def select_action_for_vec(self, obs, mask, mode):
-        '''
-        obs: agentobs
-        mask: agent
-        mode: in ['run', 'eval']
-
-        returnn_rollout_threads
-        '''
-        assert mode in ['run', 'eval']
-        a_list, logprob_a_list = [], []
-        # == with torch.no_grad() I use detach alternatively ==
-        n_rollout_threads = obs.shape[0]  # train128eval1, self.n_rollout_threads
-        for e in range(n_rollout_threads):
-            a_li, logprob_a_li = [], []
-            for i in range(self.n_agent):
-                input = torch.FloatTensor(obs[e][i].reshape(1, -1)).to(self.device)
-                if self.is_uav(i):  # for uav
-                    if mode == 'run':
-                        dist = self.actor[i].get_dist(input)
-                        ivf_flag = (np.random.rand() < self.eoi1_ER)
-                        if self.use_eoi1 and ivf_flag:  # ivfmu  #  PPO——pymarlQMIX
-                            a = self.ivf[i].evaluate_mode(input)  # OK ivf
-                        else:
-                            a = dist.sample()
-                        a = torch.clamp(a, 0, 1)  # hardcode MAPPObufferclipalogp OK
-                        logprob_a = dist.log_prob(a)
-                    else:
-                        a = self.actor[i].evaluate_mode(input)
-                        a = torch.clamp(a, 0, 1)
-                        logprob_a = torch.tensor(-1)  # dummy
-                    a_li.append(a.cpu().detach().numpy().flatten())
-                    logprob_a_li.append(logprob_a.cpu().detach().numpy().flatten())
-                else:  # for car
-                    actor_actprobs = self.actor[i](input)
-                    if mode == 'run':
-                        c = Categorical(actor_actprobs * torch.tensor(mask[e][i - self.n_uav]).to(self.device))  # mask01Categoricalsample()1
-                        ivf_flag = (np.random.rand() < self.eoi1_ER)
-                        if self.use_eoi1 and ivf_flag:  # ivfmu  #  PPO——pymarlQMIX
-                            a = torch.argmax(self.ivf[i](input) * torch.tensor(mask[e][i - self.n_uav]).to(self.device))  # OK ivf
-                        else:
-                            a = c.sample()
-                        logprob_a = c.log_prob(a)
-                    else:
-                        a = torch.argmax(actor_actprobs * torch.tensor(mask[e][i - self.n_uav]).to(self.device))
-                        logprob_a = torch.tensor(0.0)
-                    a_li.append(a.cpu().detach().numpy().flatten().item())
-                    logprob_a_li.append(logprob_a.cpu().detach().numpy().flatten().item())
-            # == with torch.no_grad() ==
-            a_list.append(a_li)
-            logprob_a_list.append(logprob_a_li)
-
-        return a_list, logprob_a_list
-
     def select_action_for_vec_2(self, obs, mask, mode):
 
         actions = []  # agentthread
@@ -118,11 +57,7 @@ class VecHybridPPO(Hybrid_PPO_base):
             if self.is_uav(i):  # for uav
                 if mode == 'run':
                     dist = self.actor[i].get_dist(input)
-                    ivf_flag = (np.random.rand() < self.eoi1_ER)
-                    if self.use_eoi1 and ivf_flag:  # ivfmu  #  PPO——pymarlQMIX
-                        a = self.ivf[i].evaluate_mode(input)  # vec2
-                    else:
-                        a = dist.sample()
+                    a = dist.sample()
                     a = torch.clamp(a, 0, 1)
                     logprob_a = dist.log_prob(a)
                 else:
@@ -135,11 +70,7 @@ class VecHybridPPO(Hybrid_PPO_base):
                 actor_actprobs = self.actor[i](input)
                 if mode == 'run':
                     c = Categorical(actor_actprobs * torch.tensor(mask_for_agents[i - self.n_uav]).to(self.device))  # mask01Categoricalsample()1
-                    ivf_flag = (np.random.rand() < self.eoi1_ER)
-                    if self.use_eoi1 and ivf_flag:  # ivfmu  #  PPO——pymarlQMIX
-                        a = torch.argmax(self.ivf[i](input) * torch.tensor(mask_for_agents[i - self.n_uav]).to(self.device), dim=-1)  # OK ivf
-                    else:
-                        a = c.sample()
+                    a = c.sample()
                     logprob_a = c.log_prob(a)
                 else:
                     a = torch.argmax(actor_actprobs * torch.tensor(mask_for_agents[i - self.n_uav]).to(self.device), dim=-1)
@@ -175,16 +106,11 @@ class VecHybridPPO(Hybrid_PPO_base):
         self.timesteps = timesteps
         self.entropy_coef *= self.entropy_coef_decay  # start with 0.001, decay by *= 0.99
         # == myadd ==
-        self.eoi1_ER *= self.eoi_coef_decay
         self.eoi3_coef *= self.eoi_coef_decay
         # == myadd ==
 
-        if self.buffer_type == 1:
-            o, mask, a, r, o_prime, logprob_a, done, nei_r, uav_r, car_r, global_r = self.make_batch()  # maska
-        elif self.buffer_type == 2:
-            o, mask, a, r, o_prime, logprob_a, done, nei_r, uav_r, car_r, global_r = self.make_batch_2()
-        else:
-            raise ValueError()
+        o, mask, a, r, o_prime, logprob_a, done, nei_r, uav_r, car_r, global_r = self.make_batch()  # maska
+
         # shape = (agent, T_horizon, threads, dim)
         # OK checkbuffer typeshape
 
@@ -204,10 +130,7 @@ class VecHybridPPO(Hybrid_PPO_base):
 
         '''train eoi_net'''
         if self.use_eoi:
-            if self.eoi_faster:
-                self.EOI_update2(o_prime)
-            else:
-                self.EOI_update(o_prime)
+            self.EOI_update2(o_prime)
 
         '''Use TD+GAE+LongTrajectory to compute Advantage and TD target'''
 
@@ -245,8 +168,6 @@ class VecHybridPPO(Hybrid_PPO_base):
             else:
                 intrinsic_reward_list = self.gen_intrinsic_reward_by_eoinet(o)
             #  shape = (agent, T_horizon, 1) (agent, T_horizon, threads, 1)
-            if self.use_eoi1:
-                ivf_adv_list, ivf_target_list = func(intrinsic_reward_list, self.ivf_critic)
             if self.use_eoi3:
                 shaping_r_list = [r[i] + self.eoi3_coef * intrinsic_reward_list[i] for i in range(self.n_agent)]
                 shaping_adv_list, shaping_target_list = func(shaping_r_list, self.critic)
@@ -262,8 +183,6 @@ class VecHybridPPO(Hybrid_PPO_base):
         self.merge(o, a, logprob_a, adv_list, r_target_list,
               state if self.use_centralized_critc else None,
               state_prime if self.use_centralized_critc else None,
-              ivf_adv_list if self.use_eoi1 else None,
-              ivf_target_list if self.use_eoi1 else None,
               shaping_adv_list if self.use_eoi3 else None,
               shaping_target_list if self.use_eoi3 else None,
               global_adv_list if self.use_copo else None,
@@ -289,7 +208,7 @@ class VecHybridPPO(Hybrid_PPO_base):
         old_actor = copy.deepcopy(self.actor)  # θold,
         '''Kactorcritic'''
         # Slice long trajectopy into short trajectory and perform mini-batch PPO update
-        als, ivfls, c1ls, c2ls, c3ls, c4ls, c5ls = [], [], [], [], [], [], []  # ccriticnei/uav_criticcar_criticglobal_criticivf_critic
+        als, c1ls, c2ls, c3ls, c4ls, c5ls = [], [], [], [], [], []
         a_optim_iter_num = int(math.ceil(o[0].shape[0] / self.a_optim_batch_size))
         c_optim_iter_num = int(math.ceil(o[0].shape[0] / self.c_optim_batch_size))
         for k in range(self.K_epochs):
@@ -300,9 +219,6 @@ class VecHybridPPO(Hybrid_PPO_base):
                 o[i], a[i], logprob_a[i], r_target_list[i] = o[i][perm], a[i][perm], logprob_a[i][perm], r_target_list[i][perm]
                 if self.use_centralized_critc:
                     state[i] = state[i][perm]
-                if self.use_eoi1:
-                    ivf_adv_list[i] = ivf_adv_list[i][perm]
-                    ivf_target_list[i] = ivf_target_list[i][perm]
                 if self.use_eoi3:
                     shaping_adv_list[i] = shaping_adv_list[i][perm]
                     shaping_target_list[i] = shaping_target_list[i][perm]
@@ -341,14 +257,6 @@ class VecHybridPPO(Hybrid_PPO_base):
             als.append(al)
             c1ls.append(c1l)
 
-            # update ivf(optional for eoi1) and critics(optional for copo)
-            if self.use_eoi1:
-                ivfl = self.PPO_update_actor(o, a, logprob_a, ivf_adv_list, self.ivf, self.ivf_optimizer,
-                                             a_optim_iter_num)
-                c5l = self.PPO_update_critic(obs_for_opt_critic, ivf_target_list, self.ivf_critic, self.ivf_critic_optimizer,
-                                             c_optim_iter_num)  # cc_obsivf_critic
-                ivfls.append(ivfl)
-                c5ls.append(c5l)
             if self.use_copo1:
                 c2l = self.PPO_update_critic(obs_for_opt_critic, nei_target_list, self.nei_critic, self.nei_critic_optimizer,
                                              c_optim_iter_num)
@@ -371,9 +279,6 @@ class VecHybridPPO(Hybrid_PPO_base):
 
         self.writer.add_scalar('watch/PPO/actor_loss', np.mean(als), timesteps)
         self.writer.add_scalar('watch/PPO/critic_loss', np.mean(c1ls), timesteps)
-        if self.use_eoi1:
-            self.writer.add_scalar('watch/PPO/ivf_actor_loss', np.mean(ivfls), timesteps)
-            self.writer.add_scalar('watch/PPO/ivf_critic_loss', np.mean(c5ls), timesteps)
         if self.use_copo1:
             self.writer.add_scalar('watch/PPO/nei_critic_loss', np.mean(c2ls), timesteps)
             self.writer.add_scalar('watch/PPO/global_critic_loss', np.mean(c4ls), timesteps)
@@ -392,7 +297,7 @@ class VecHybridPPO(Hybrid_PPO_base):
                 np.random.shuffle(perm)
                 for i in range(self.n_agent):
                     o[i], a[i], logprob_a[i] = o[i][perm], a[i][perm], logprob_a[i][perm]
-                    if self.our_vital_debug and self.use_eoi3:  # TODO 4/10 debug
+                    if self.use_eoi3:
                         shaping_adv_list[i] = shaping_adv_list[i][perm]
                     else:
                         adv_list[i] = adv_list[i][perm]
@@ -411,8 +316,7 @@ class VecHybridPPO(Hybrid_PPO_base):
                         input_dict['s'] = o[i][index]  # cc_obsoactorcritic
                         input_dict['a'] = a[i][index]
                         input_dict['logprob_a'] = logprob_a[i][index]
-                        # TODO 4/10 TBD NEXT DASAP buginput_dict['advantage']eoi3shaping_adv_list!
-                        if self.our_vital_debug and self.use_eoi3:
+                        if self.use_eoi3:
                             input_dict['advantage'] = shaping_adv_list[i][index]
                         else:
                             input_dict['advantage'] = adv_list[i][index]
@@ -472,13 +376,13 @@ class VecHybridPPO(Hybrid_PPO_base):
                     dist_entropy = distribution.entropy().unsqueeze(-1)
 
                 # logprob_a, ratioinf
-                clip_lower_bound = np.log(1e-3) if self.use_eoi1 else float('-inf')  # np.log(1e-3)-6.9
+                clip_lower_bound = float('-inf')  # np.log(1e-3)-6.9
                 clip_upper_bound = float('inf')
 
                 if self.is_uav(i):
-                    ratio = torch.exp(logprob_a_now.sum(-1, keepdim=True) - torch.clamp(logprob_a[i][index], clip_lower_bound, clip_upper_bound).sum(-1, keepdim=True))
+                    ratio = torch.exp(logprob_a_now.sum(-1, keepdim=True) - logprob_a[i][index].sum(-1, keepdim=True))
                 else:
-                    ratio = torch.exp(logprob_a_now - torch.clamp(logprob_a[i][index], clip_lower_bound, clip_upper_bound))
+                    ratio = torch.exp(logprob_a_now - logprob_a[i][index])
 
                 surr1 = ratio * adv[i][index]
                 surr2 = torch.clamp(ratio, 1 - self.clip_rate, 1 + self.clip_rate) * adv[i][index]
@@ -613,10 +517,7 @@ class VecHybridPPO(Hybrid_PPO_base):
             phi_final_grad = torch.reshape(phi_final_grad, ())
             theta_final_grad = torch.reshape(theta_final_grad, ())
             self.phi_param[i].grad = -phi_final_grad
-            if self.hcopo_grad_minus:  # TODO 4/11 debug only!
-                self.theta_param[i].grad = theta_final_grad
-            else:
-                self.theta_param[i].grad = -theta_final_grad  #
+            self.theta_param[i].grad = -theta_final_grad  #
             self.phi_opt[i].step()
             self.theta_opt[i].step()
             # assign

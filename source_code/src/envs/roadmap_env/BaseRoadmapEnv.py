@@ -35,9 +35,6 @@ class BaseRoadmapEnv():
         self.env_config = env_config
         self.output_dir = self.args.output_dir
 
-        # 4/4 trysomething
-        self.delete_theta = self.args.delete_theta
-
         # debug
         self.reward_scale = self.args.reward_scale
 
@@ -45,12 +42,7 @@ class BaseRoadmapEnv():
         self.roadmap_dir = self.args.roadmap_dir
         self.G = ox.load_graphml(self.roadmap_dir + '/map.graphml')
         self.rm = Roadmap(self.args.dataset)
-        self.search_scale = self.args.search_scale
-        self.ss_decay = self.args.ss_decay
-        self.action_space_type = self.args.action_space_type
         self.type2_act_dim = self.args.type2_act_dim
-        self.type2_act_sortkey = self.args.type2_act_sortkey
-        self.type3_act_available_num = self.args.type3_act_available_num
         self.gr = self.args.gr
         # ==
         self.use_eoi = self.args.use_eoi
@@ -59,7 +51,7 @@ class BaseRoadmapEnv():
         self.partial_obs = rllib_env_config['partial_obs']
         self.use_reward_shaping = rllib_env_config['use_reward_shaping']
         self.energy_factor = rllib_env_config['energy_factor']
-        self.debug_consider_return_to_zero_list = rllib_env_config['debug_consider_return_to_zero_list']
+        self.consider_return_to_zero_list = rllib_env_config['consider_return_to_zero_list']
         self.use_shared_parameters = rllib_env_config.get('use_shared_parameters')  # single agent
         self.add_svo_in_obs = rllib_env_config.get('add_svo_in_obs')  # IPPO
         self.debug_use_nei_max_distance = rllib_env_config.get('debug_use_nei_max_distance')  # IPPO
@@ -91,9 +83,6 @@ class BaseRoadmapEnv():
         uav_state_dim = model_config['gnn_config']['uav_state_dim']
         car_state_dim = model_config['gnn_config']['car_state_dim']
         human_state_dim = model_config['gnn_config']['human_state_dim']
-        if self.delete_theta:
-            uav_state_dim -= 1
-            car_state_dim -= 1
         self.obs_dim = uav_state_dim * env_config['num_uav'] + \
                        car_state_dim * env_config['num_car'] + \
                        human_state_dim * env_config['num_human']
@@ -102,29 +91,14 @@ class BaseRoadmapEnv():
         self.observation_space = spaces.Box(0.0, 1.0, shape=(self.obs_dim,))
         self.share_observation_space = self.observation_space
         self.mappo_share_observation_space = spaces.Box(0.0, 1.0, shape=(self.obs_dim * self.num_agent,))  # mappoconcatccobs
-        assert self.action_space_type in (1, 2, 3)
         uav_act_space = spaces.Box(0.0, 1.0, shape=(2,), dtype=np.float32)
-        if self.action_space_type == 1:
-            self.action_space = spaces.Dict(
-                {
-                    'uav': uav_act_space,
-                    'car': spaces.Discrete(9)
-                }
-            )
-        elif self.action_space_type == 2:
-            self.action_space = spaces.Dict(
-                {
-                    'uav': uav_act_space,
-                    'car': spaces.Discrete(self.type2_act_dim)  #
-                }
-            )
-        else:
-            self.action_space = spaces.Dict(
-                {
-                    'uav': uav_act_space,
-                    'car': spaces.Discrete(len(self.G.nodes))  # indexs
-                }
-            )
+        self.action_space = spaces.Dict(
+            {
+                'uav': uav_act_space,
+                'car': spaces.Discrete(self.type2_act_dim)  #
+            }
+        )
+
 
         # ==== start for CoPO ==== #
         self.config = dict()
@@ -146,7 +120,6 @@ class BaseRoadmapEnv():
         self.config['svo_dist'] = rllib_env_config.get('svo_dist', 'uniform')  # let it work in copo_validate
         self.config['svo_normal_std'] = rllib_env_config.get('svo_normal_std', 0.3)  # let it work in copo_validate
         self.config['return_native_reward'] = rllib_env_config.get('return_native_reward', False)  # let it work in copo_validate
-        self.nei_type = self.args.nei_type
         self.nei_dis_scale = self.args.nei_dis_scale
 
         self.config["neighbours_distance"] = min(env_config['max_x'], env_config['max_y']) * self.nei_dis_scale  # copo
@@ -180,8 +153,7 @@ class BaseRoadmapEnv():
         self.energy_consumption_ratio_list = None
         self.nei_matrix = None  # step
         # roadmap
-        # self.avail_act_prop_list = None
-        self.used_search_scale = None
+
 
         # debug
 
@@ -288,7 +260,6 @@ class BaseRoadmapEnv():
         self.ep_succ_j_car_dis = []
         self.ep_succ_uav_car_dis = []
         # roadmap
-        self.used_search_scale = [self.search_scale for _ in range(self.num_car)]  #
         state = JointState(self.uavs, self.cars, self.humans)
 
         return self._get_reset_return(state)
@@ -338,7 +309,7 @@ class BaseRoadmapEnv():
             for obj2 in s.uav_states + s.car_states + s.human_states:
                 if compute_distance(obj, obj2) > self.env_config['obs_range']:
                     obj2.set_zero()
-        agent_obs = self.flatten_state(s.to_tensor(add_batchsize_dim=False, device=self.device, normalize=True, delete_theta=self.delete_theta))
+        agent_obs = self.flatten_state(s.to_tensor(add_batchsize_dim=False, device=self.device, normalize=True))
         del s
         return agent_obs
 
@@ -408,11 +379,11 @@ class BaseRoadmapEnv():
             obj = self.cars[j]
             dpx = px - obj.px
             dpy = py - obj.py
-            obj.theta = compute_theta(dpx, dpy, 0)  # TODO , srcdstOK
+            obj.theta = compute_theta(dpx, dpy, 0)
             obj.px = px
             obj.py = py
             velocity = car_length_dict[agent_name] / self.env_config['tm']
-            e = consume_uav_energy(fly_time=self.env_config['tm'], v=velocity)  # TODO , hover
+            e = consume_uav_energy(fly_time=self.env_config['tm'], v=velocity)
             obj.energy -= e
             self.energy_consumption_ratio_list[j + self.num_uav] += (e / self.max_car_energy)
             rewards[agent_name] -= (self.energy_factor * e / self.max_car_energy)
@@ -443,12 +414,12 @@ class BaseRoadmapEnv():
 
         for i, uav in enumerate(self.uavs):
             dis_list = np.array([max(1, compute_distance(uav, human)) for human in self.humans])
-            if self.debug_consider_return_to_zero_list:
+            if self.consider_return_to_zero_list:
                 dis_list[self.return_to_zero_list] = float('inf')  # return_to_zero_list, 
             sorted_uav_access[i] = np.argsort(dis_list)[:self.num_subchannel]
         for i, car in enumerate(self.cars):
             dis_list = np.array([max(1, compute_distance(car, human)) for human in self.humans])
-            if self.debug_consider_return_to_zero_list:
+            if self.consider_return_to_zero_list:
                 dis_list[self.return_to_zero_list] = float('inf')
             sorted_car_access[i] = np.argsort(dis_list)[:self.num_subchannel]
         return sorted_uav_access, sorted_car_access
@@ -508,7 +479,7 @@ class BaseRoadmapEnv():
                 if sinr_i < self.sinr_demand:  #
                     # print(f'sinr_i={sinr_i}！')
                     penalty = throughput_i / self.total_data_amount
-                    rewards[agent_name] -= self.shaping1(penalty, (human_i.px, human_i.py, 0))  # TODO penalty
+                    rewards[agent_name] -= self.shaping1(penalty, (human_i.px, human_i.py, 0))
                     self.loss_ratio_list[uav_id] += 1  #
                     inter_poi_list[poi_i] = uav_id
                 else:
@@ -520,7 +491,7 @@ class BaseRoadmapEnv():
                     self.ep_succ_uav_car_dis.append(compute_distance(uav, car))
                     # ==
                     human_i.data -= throughput_i
-                    if self.debug_consider_return_to_zero_list and human_i.data == 0:  # return_to_zero_list
+                    if self.consider_return_to_zero_list and human_i.data == 0:  # return_to_zero_list
                         self.return_to_zero_list.append(poi_i)
                     r = throughput_i / self.total_data_amount
                     rewards[agent_name] += self.shaping1(r, (human_i.px, human_i.py, 0))
@@ -534,7 +505,7 @@ class BaseRoadmapEnv():
                 if sinr_j < self.sinr_demand:  #
                     # print(f'sinr_j={sinr_j}！')
                     penalty = throughput_j / self.total_data_amount
-                    rewards[agent_name] -= self.shaping1(penalty, (human_j.px, human_j.py, 0))  # TODO
+                    rewards[agent_name] -= self.shaping1(penalty, (human_j.px, human_j.py, 0))
                     self.loss_ratio_list[car_id + self.num_uav] += 1  #
                     inter_poi_list[poi_j] = car_id + self.num_uav
                 else:
@@ -546,7 +517,7 @@ class BaseRoadmapEnv():
                     self.ep_succ_uav_car_dis.append(compute_distance(uav, car))
                     # ==
                     human_j.data -= throughput_j
-                    if self.debug_consider_return_to_zero_list and human_j.data == 0:  # return_to_zero_list
+                    if self.consider_return_to_zero_list and human_j.data == 0:  # return_to_zero_list
                         self.return_to_zero_list.append(poi_j)
                     r = throughput_j / self.total_data_amount
                     rewards[agent_name] += self.shaping1(r, (human_j.px, human_j.py, 0))
@@ -568,35 +539,7 @@ class BaseRoadmapEnv():
         return rewards, infos, serve_poi_list, inter_poi_list
 
     def _nei_determin(self, relay_dict):
-        '''
-        COPO
 
-        nei_type == 1:
-            -uc relayuc（）
-            -u1u2c relayu1u2（）
-            -c1c2c1c2（）
-        nei_type == 2:
-            -uc relayuc（）
-        nei_type == 3:
-            -uc relayuc（）
-            -
-        nei_type == 4:
-            -
-        '''
-
-        assert self.nei_type in (1, 2, 3, 4)
-
-        # 4_17 Our(copo)
-        if self.nei_type == 4:
-            for i in range(self.num_agent):
-                for j in range(i + 1, self.num_agent):
-                    if compute_distance(self.obj(i), self.obj(j)) < self.config["neighbours_distance"]:
-                        self.nei_matrix[i][j] = 1
-                        self.nei_matrix[j][i] = 1
-            return
-
-        # 1~3
-        ''''''
         for uav_id, car_id in relay_dict.items():
             self.nei_matrix[uav_id][self.num_uav + car_id] = 1
             self.nei_matrix[self.num_uav + car_id][uav_id] = 1
@@ -604,15 +547,14 @@ class BaseRoadmapEnv():
         ''''''
         for uav1_id in range(self.num_uav):
             for uav2_id in range(uav1_id + 1, self.num_uav):
-                if self.nei_type == 1 and relay_dict[uav1_id] == relay_dict[uav2_id] or \
-                        self.nei_type == 3 and compute_distance(self.uavs[uav1_id], self.uavs[uav2_id]) < self.config["neighbours_distance"]:
+                if compute_distance(self.uavs[uav1_id], self.uavs[uav2_id]) < self.config["neighbours_distance"]:
                     self.nei_matrix[uav1_id][uav2_id] = 1
                     self.nei_matrix[uav2_id][uav1_id] = 1
 
         ''''''
         for car1_id in range(self.num_car):
             for car2_id in range(car1_id + 1, self.num_car):
-                if self.nei_type in (1, 3) and compute_distance(self.cars[car1_id], self.cars[car2_id]) < self.config["neighbours_distance"]:
+                if compute_distance(self.cars[car1_id], self.cars[car2_id]) < self.config["neighbours_distance"]:
                     self.nei_matrix[self.num_uav + car1_id][self.num_uav + car2_id] = 1
                     self.nei_matrix[self.num_uav + car2_id][self.num_uav + car1_id] = 1
 

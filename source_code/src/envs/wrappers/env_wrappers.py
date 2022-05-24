@@ -145,7 +145,6 @@ class ShareVecEnv(ABC):
 
     @property
     def unwrapped(self):
-        # TODO
         if isinstance(self, VecEnvWrapper):
             return self.venv.unwrapped
         else:

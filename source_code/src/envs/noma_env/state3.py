@@ -40,24 +40,15 @@ class UAVState():
     def set_zero(self):
         self.px = self.py = self.pz = self.theta = self.energy = 0
 
-    def to_tuple(self, normalize=False, delete_theta=False):
+    def to_tuple(self, normalize=False):
         if normalize:
-            if delete_theta:
-                return (self.px / self.env_config['max_x'],
-                        self.py / self.env_config['max_y'],
-                        self.energy / self.env_config['max_uav_energy']
-                        )
-            else:
-                return (self.px / self.env_config['max_x'],
-                        self.py / self.env_config['max_y'],
-                        (self.theta - self.env_config['theta_range'][0]) / (self.env_config['theta_range'][1] - self.env_config['theta_range'][0]),
-                        self.energy / self.env_config['max_uav_energy']
-                        )
+            return (self.px / self.env_config['max_x'],
+                    self.py / self.env_config['max_y'],
+                    (self.theta - self.env_config['theta_range'][0]) / (self.env_config['theta_range'][1] - self.env_config['theta_range'][0]),
+                    self.energy / self.env_config['max_uav_energy']
+                    )
         else:
-            if delete_theta:
-                return self.px, self.py, self.energy
-            else:
-                return self.px, self.py, self.theta, self.energy
+            return self.px, self.py, self.theta, self.energy
 
 
 class CarState():
@@ -73,24 +64,15 @@ class CarState():
         self.px = self.py = self.pz = self.theta = self.energy = 0
 
 
-    def to_tuple(self, normalize=False, delete_theta=False):
+    def to_tuple(self, normalize=False):
         if normalize:
-            if delete_theta:
-                return (self.px / self.env_config['max_x'],
-                        self.py / self.env_config['max_y'],
-                        self.energy / self.env_config['max_car_energy']
-                        )
-            else:
-                return (self.px / self.env_config['max_x'],
+            return (self.px / self.env_config['max_x'],
                         self.py / self.env_config['max_y'],
                         (self.theta - self.env_config['theta_range'][0]) / (self.env_config['theta_range'][1] - self.env_config['theta_range'][0]),
                         self.energy / self.env_config['max_car_energy']
                         )
         else:
-            if delete_theta:
-                return self.px, self.py, self.energy
-            else:
-                return self.px, self.py, self.theta, self.energy
+            return self.px, self.py, self.theta, self.energy
 
 class HumanState():
     def __init__(self, px, py, pz, theta, data, env_config):
@@ -129,10 +111,10 @@ class JointState():
         self.human_states = human_states
         # self.building_states = building_states
 
-    def to_tensor(self, add_batchsize_dim=False, device=None, normalize=False, delete_theta=False):
-        uav_tensor = torch.tensor([uav_state.to_tuple(normalize=True if normalize else False, delete_theta=delete_theta) for uav_state in self.uav_states],
+    def to_tensor(self, add_batchsize_dim=False, device=None, normalize=False):
+        uav_tensor = torch.tensor([uav_state.to_tuple(normalize=True if normalize else False) for uav_state in self.uav_states],
                                            dtype=torch.float32)
-        car_tensor = torch.tensor([car_state.to_tuple(normalize=True if normalize else False, delete_theta=delete_theta) for car_state in self.car_states],
+        car_tensor = torch.tensor([car_state.to_tuple(normalize=True if normalize else False) for car_state in self.car_states],
                                            dtype=torch.float32)
         human_tensor = torch.tensor([human_state.to_tuple(normalize=True if normalize else False) for human_state in self.human_states],
                                            dtype=torch.float32)

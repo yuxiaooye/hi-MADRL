@@ -29,50 +29,6 @@ class VecHybridShareLayerCopo(Hybrid_PPO_base):
             self.branches_uav = ('dist', 'value', 'uav', 'car', 'global')
             self.branches_car = ('act_prob', 'value', 'uav', 'car', 'global')
 
-    def select_action_for_vec(self, obs, mask, mode):
-        '''
-        obs: agentobs
-        mask: agent
-        mode: in ['run', 'eval']
-
-        returnn_rollout_threads
-        '''
-        assert mode in ['run', 'eval']
-        a_list, logprob_a_list = [], []
-        # == with torch.no_grad() I use detach alternatively ==
-        n_rollout_threads = obs.shape[0]  # train128eval1, self.n_rollout_threads
-        for e in range(n_rollout_threads):
-            a_li, logprob_a_li = [], []
-            for i in range(self.n_agent):
-                input = torch.FloatTensor(obs[e][i].reshape(1, -1)).to(self.device)
-                if self.is_uav(i):  # for uav
-                    if mode == 'run':
-                        dist = self.model[i].get_dist(input)  # value
-                        a = dist.sample()  # sample
-                        a = torch.clamp(a, 0, 1)
-                        logprob_a = dist.log_prob(a)
-                    else:
-                        a = self.model[i].evaluate_mode(input)
-                        a = torch.clamp(a, 0, 1)
-                        logprob_a = torch.tensor(-1)  # dummy
-                    a_li.append(a.cpu().detach().numpy().flatten())
-                    logprob_a_li.append(logprob_a.cpu().detach().numpy().flatten())
-                else:  # for car
-                    actor_actprobs = self.model[i].get_dist(input)
-                    if mode == 'run':
-                        c = Categorical(actor_actprobs * torch.tensor(mask[e][i - self.n_uav]).to(self.device))  # mask01Categoricalsample()1
-                        a = c.sample()
-                        logprob_a = c.log_prob(a)
-                    else:
-                        a = torch.argmax(actor_actprobs * torch.tensor(mask[e][i - self.n_uav]).to(self.device))
-                        logprob_a = torch.tensor(-1)  # dummy
-                    a_li.append(a.cpu().detach().numpy().flatten().item())
-                    logprob_a_li.append(logprob_a.cpu().detach().numpy().flatten().item())
-            # == with torch.no_grad() ==
-            a_list.append(a_li)
-            logprob_a_list.append(logprob_a_li)
-
-        return a_list, logprob_a_list
 
     def select_action_for_vec_2(self, obs, mask, mode):
         actions = []  # agentthread
@@ -134,16 +90,12 @@ class VecHybridShareLayerCopo(Hybrid_PPO_base):
         self.timesteps = timesteps
         self.entropy_coef *= self.entropy_coef_decay  # start with 0.001, decay by *= 0.99
         # == myadd ==
-        self.eoi1_ER *= self.eoi_coef_decay
         self.eoi3_coef *= self.eoi_coef_decay
         # == myadd ==
 
-        if self.buffer_type == 1:
-            o, mask, a, r, o_prime, logprob_a, done, nei_r, uav_r, car_r, global_r = self.make_batch()  # maska
-        elif self.buffer_type == 2:
-            o, mask, a, r, o_prime, logprob_a, done, nei_r, uav_r, car_r, global_r = self.make_batch_2()
-        else:
-            raise ValueError()
+
+        o, mask, a, r, o_prime, logprob_a, done, nei_r, uav_r, car_r, global_r = self.make_batch()  # maska
+
         # shape = (agent, T_horizon, threads, dim)
         # OK checkbuffer typeshape
 
@@ -159,10 +111,8 @@ class VecHybridShareLayerCopo(Hybrid_PPO_base):
 
         '''train eoi_net'''
         if self.use_eoi:
-            if self.eoi_faster:
-                self.EOI_update2(o_prime)
-            else:
-                self.EOI_update(o_prime)
+            self.EOI_update2(o_prime)
+
 
         '''Use TD+GAE+LongTrajectory to compute Advantage and TD target'''
 
@@ -202,8 +152,6 @@ class VecHybridShareLayerCopo(Hybrid_PPO_base):
         if self.use_eoi:
             intrinsic_reward_list = self.gen_intrinsic_reward_by_eoinet(o)
             #  shape = (agent, T_horizon, 1) (agent, T_horizon, threads, 1)
-            if self.use_eoi1:
-                raise ValueError()
             if self.use_eoi3:
                 shaping_r_list = [r[i] + self.eoi3_coef * intrinsic_reward_list[i] for i in range(self.n_agent)]
                 shaping_adv_list, shaping_target_list = func(shaping_r_list, branch='value')
@@ -220,8 +168,6 @@ class VecHybridShareLayerCopo(Hybrid_PPO_base):
         self.merge(o, a, logprob_a, adv_list, r_target_list,
                    state if self.use_centralized_critc else None,
                    state_prime if self.use_centralized_critc else None,
-                   ivf_adv_list if self.use_eoi1 else None,
-                   ivf_target_list if self.use_eoi1 else None,
                    shaping_adv_list if self.use_eoi3 else None,
                    shaping_target_list if self.use_eoi3 else None,
                    global_adv_list if self.use_copo else None,
@@ -257,8 +203,6 @@ class VecHybridShareLayerCopo(Hybrid_PPO_base):
                 o[i], a[i], logprob_a[i], r_target_list[i] = o[i][perm], a[i][perm], logprob_a[i][perm], r_target_list[i][perm]
                 if self.use_centralized_critc:
                     state[i] = state[i][perm]
-                if self.use_eoi1:
-                    raise ValueError()
                 if self.use_eoi3:
                     shaping_adv_list[i] = shaping_adv_list[i][perm]
                     shaping_target_list[i] = shaping_target_list[i][perm]
@@ -331,7 +275,7 @@ class VecHybridShareLayerCopo(Hybrid_PPO_base):
                 np.random.shuffle(perm)
                 for i in range(self.n_agent):
                     o[i], a[i], logprob_a[i] = o[i][perm], a[i][perm], logprob_a[i][perm]
-                    if self.our_vital_debug and self.use_eoi3:  # TODO 4/10 debug
+                    if self.use_eoi3:
                         shaping_adv_list[i] = shaping_adv_list[i][perm]
                     else:
                         adv_list[i] = adv_list[i][perm]
@@ -349,8 +293,7 @@ class VecHybridShareLayerCopo(Hybrid_PPO_base):
                         input_dict['s'] = o[i][index]
                         input_dict['a'] = a[i][index]
                         input_dict['logprob_a'] = logprob_a[i][index]
-                        # TODO 4/10 TBD NEXT DASAP buginput_dict['advantage']eoi3shaping_adv_list!
-                        if self.our_vital_debug and self.use_eoi3:
+                        if self.use_eoi3:
                             input_dict['advantage'] = shaping_adv_list[i][index]
                         else:
                             input_dict['advantage'] = adv_list[i][index]
@@ -617,10 +560,7 @@ class VecHybridShareLayerCopo(Hybrid_PPO_base):
             phi_final_grad = torch.reshape(phi_final_grad, ())
             theta_final_grad = torch.reshape(theta_final_grad, ())
             self.phi_param[i].grad = -phi_final_grad
-            if self.hcopo_grad_minus:  # TODO 4/11 debug only!
-                self.theta_param[i].grad = theta_final_grad
-            else:
-                self.theta_param[i].grad = -theta_final_grad  #
+            self.theta_param[i].grad = -theta_final_grad  #
 
             self.phi_opt[i].step()
             self.theta_opt[i].step()

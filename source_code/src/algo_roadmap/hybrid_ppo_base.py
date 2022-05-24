@@ -5,7 +5,6 @@ import shutil
 import math
 import numpy as np
 from torch.nn import Parameter
-from src.algo_roadmap.buffer_like_mappo import SeparatedReplayBuffer
 from src.algo_roadmap.net.network import EOI_Net
 from src.algo_roadmap.utils import normalize
 
@@ -15,8 +14,6 @@ class Hybrid_PPO_base():
                  output_dir,
                  device,
                  writer,
-                 buffer_type,
-                 eoi_faster,
                  T_horizon,
                  n_rollout_threads,
                  share_parameter,
@@ -51,7 +48,6 @@ class Hybrid_PPO_base():
                  entropy_coef_decay=0.9998,
                  vf_coef=1.0,
                  # eoi
-                 eoi1_ER=0.2,
                  eoi3_coef=0.01,
                  eoi_coef_decay=1.0,
                  use_o_prime_compute_ir=False,
@@ -60,9 +56,7 @@ class Hybrid_PPO_base():
                  HID_phi=[90, 90],
                  HID_theta=[45, 45],
                  svo_lr=1e-4,
-                 hcopo_grad_minus=False,
                  hcopo_sqrt2_scale=False,
-                 our_vital_debug=False,
                  svo_frozen=False,
                  ):
 
@@ -71,15 +65,12 @@ class Hybrid_PPO_base():
         self.output_dir = output_dir
         self.device = device
         self.writer = writer
-        self.buffer_type = buffer_type
-        self.eoi_faster = eoi_faster
         self.T_horizon = T_horizon
         self.n_rollout_threads = n_rollout_threads
         self.share_parameter = share_parameter
         self.share_layer = share_layer
         self.use_centralized_critc = use_ccobs
         self.use_eoi = use_eoi
-        self.use_eoi1 = use_eoi and eoi_kind == 1
         self.use_eoi3 = use_eoi and eoi_kind == 3
         self.use_copo = use_copo
         self.use_copo1 = use_copo and copo_kind == 1
@@ -90,9 +81,8 @@ class Hybrid_PPO_base():
         self.n_agent = n_agent
         self.n_uav = n_uav
         self.n_car = n_car
-        self.eoi1_ER = eoi1_ER
         self.eoi3_coef = eoi3_coef
-        self.eoi_coef_decay = eoi_coef_decay  # eoi1eoi3
+        self.eoi_coef_decay = eoi_coef_decay
         self.use_o_prime_compute_ir = use_o_prime_compute_ir
         self.HID_phi = HID_phi
         self.HID_theta = HID_theta
@@ -119,10 +109,8 @@ class Hybrid_PPO_base():
         self.entropy_coef_decay = entropy_coef_decay
         self.vf_coef = vf_coef
         self.svo_lr = svo_lr
-        self.hcopo_grad_minus = hcopo_grad_minus
         self.hcopo_sqrt2_scale = hcopo_sqrt2_scale
         self.initial_svo_degree = initial_svo_degree
-        self.our_vital_debug = our_vital_debug
         self.svo_frozen = svo_frozen
         self.timesteps = None
         assert not (self.hcopo_shift and self.hcopo_shift_513)
@@ -133,16 +121,7 @@ class Hybrid_PPO_base():
             self.eoi_net = EOI_Net(obs_dim, n_agent).to(self.device)
             self.eoi_optimizer = torch.optim.Adam(self.eoi_net.parameters(), lr=a_lr)
 
-        if self.buffer_type == 1:
-            self.data = []
-        elif self.buffer_type == 2:
-            self.buffer = [
-                SeparatedReplayBuffer(T_horizon, n_rollout_threads, obs_dim, uav_continuous_action_dim, is_uav=True) if self.is_uav(i) else
-                SeparatedReplayBuffer(T_horizon, n_rollout_threads, obs_dim, car_discrete_action_dim, is_uav=False)
-                for i in range(self.n_agent)
-            ]
-        else:
-            raise ValueError()
+        self.data = []
 
         '''initialize svo'''
         if self.use_copo1:
@@ -159,7 +138,7 @@ class Hybrid_PPO_base():
                 deg2pp_sgm = {0: 0.0}
                 deg2tp_sgm = {45: 0.0}
             else:
-                deg2pp_sgm = {90: 8.0, 0: -8.0}  # 0: -8.0 is add in 5/7
+                deg2pp_sgm = {90: 8.0, 0: -8.0}
                 deg2tp_sgm = {45: -1.9450, 135: -0.5108, 315: 1.9460}
             if self.share_parameter:
                 pass
@@ -259,45 +238,6 @@ class Hybrid_PPO_base():
                 intrinsic_reward_list.append(intrinsic_reward)
         return intrinsic_reward_list
 
-    def EOI_update(self, s_prime):
-        # ① agent
-        # s_prime.shape = (agent, T_horizon, threads, dim)
-        assert self.n_rollout_threads == s_prime[0].shape[1]
-        T_horizon, obs_dim = s_prime[0].shape[0], s_prime[0].shape[2]
-        s_prime_with_id = torch.zeros((T_horizon * self.n_rollout_threads * self.n_agent, obs_dim + self.n_agent))
-        # for
-        ind = 0
-        for i in range(self.n_agent):
-            for t in range(T_horizon):
-                for e in range(self.n_rollout_threads):
-                    agent_id = torch.zeros(self.n_agent).to(self.device)  # onehot
-                    agent_id[i] = 1
-                    s_prime_with_id[ind] = torch.hstack((s_prime[i][t][e], agent_id))
-                    ind += 1
-
-        # ② train eoi_net
-        els = []
-        eoi_optim_iter_num = int(math.ceil(ind / self.eoi_optim_batch_size))
-        eoi_epoch = 1  # pymarl+EOI
-        for k in range(eoi_epoch):
-            perm = np.arange(ind)
-            np.random.shuffle(perm)
-            s_prime_with_id = s_prime_with_id[perm].to(self.device)
-            for j in range(eoi_optim_iter_num):
-                index = slice(j * self.eoi_optim_batch_size, min((j + 1) * self.eoi_optim_batch_size, ind))
-                X = s_prime_with_id[index][:, :obs_dim]
-                Y = s_prime_with_id[index][:, obs_dim:obs_dim + self.n_agent]
-                p = self.eoi_net(X)
-                loss_1 = -(Y * (torch.log(p + 1e-8))).mean() - 0.1 * (p * (torch.log(p + 1e-8))).mean()
-                # 
-                #
-                els.append(loss_1.item())
-                self.eoi_optimizer.zero_grad()
-                loss_1.backward()
-                self.eoi_optimizer.step()
-
-        self.writer.add_scalar('watch/EOI/eoi_loss', np.mean(els), self.timesteps)
-
     def EOI_update2(self, s_prime):
         s_p = torch.stack(s_prime)  # shape = (agent, T_horizon, threads, dim)
         assert self.n_agent == s_p.shape[0]
@@ -343,8 +283,6 @@ class Hybrid_PPO_base():
     def merge(self, o, a, logprob_a, adv_list, r_target_list,
               state,
               state_prime,
-              ivf_adv_list,
-              ivf_target_list,
               shaping_adv_list,
               shaping_target_list,
               global_adv_list,
@@ -367,9 +305,6 @@ class Hybrid_PPO_base():
                 state[i] = state[i].reshape(-1, state[i].shape[-1])
                 state_prime[i] = state_prime[i].reshape(-1, state_prime[i].shape[-1])
 
-            if ivf_adv_list is not None:
-                ivf_adv_list[i] = ivf_adv_list[i].reshape(-1, 1)
-                ivf_target_list[i] = ivf_target_list[i].reshape(-1, 1)
             if shaping_adv_list is not None:
                 shaping_adv_list[i] = shaping_adv_list[i].reshape(-1, 1)
                 shaping_target_list[i] = shaping_target_list[i].reshape(-1, 1)
@@ -430,7 +365,6 @@ class Hybrid_PPO_base():
             adv_list, _, _ = normalize(adv_list)  # svo normalize original adv
             # (normalizedthread mappo)
             return None, None, None
-
 
 
     def make_batch(self):
@@ -500,75 +434,7 @@ class Hybrid_PPO_base():
 
         return s, mask, a, r, s_prime, logprob_a, done, nei_r, uav_r, car_r, global_r
 
-    def make_batch_2(self):
-        assert self.buffer[0].step == 0  # trainbuffer
-        s, mask, a, r, s_prime, logprob_a, done, nei_r, uav_r, car_r, global_r = [], [], [], [], [], [], [], [], [], [], []
-        for i in range(self.n_agent):
-            s.append(torch.tensor(self.buffer[i].obs, dtype=torch.float).to(self.device))
-            a.append(torch.tensor(self.buffer[i].actions, dtype=torch.float).to(self.device))
-            r.append(torch.tensor(self.buffer[i].rewards, dtype=torch.float).to(self.device))
-            s_prime.append(torch.tensor(self.buffer[i].obs_prime, dtype=torch.float).to(self.device))
-            logprob_a.append(torch.tensor(self.buffer[i].action_log_probs, dtype=torch.float).to(self.device))
-            done.append(torch.tensor(self.buffer[i].dones, dtype=torch.float).to(self.device))
-            if not self.is_uav(i):
-                mask.append(torch.tensor(self.buffer[i].available_actions, dtype=torch.float).to(self.device))
-            nei_r.append(torch.tensor(self.buffer[i].nei_r, dtype=torch.float).to(self.device))
-            uav_r.append(torch.tensor(self.buffer[i].uav_r, dtype=torch.float).to(self.device))
-            car_r.append(torch.tensor(self.buffer[i].car_r, dtype=torch.float).to(self.device))
-            global_r.append(torch.tensor(self.buffer[i].global_r, dtype=torch.float).to(self.device))
-
-        return s, mask, a, r, s_prime, logprob_a, done, nei_r, uav_r, car_r, global_r
-
     def put_data(self, transition):
-        if self.buffer_type == 1:
-            self.data.append(transition)
-        elif self.buffer_type == 2:
-            self.buffer_type_2_insert(transition)
-        else:
-            raise ValueError()
+        self.data.append(transition)
 
-    def buffer_type_2_insert(self, transition):
-        # donecopor
-        obs, action_mask, actions, rewards, obs_prime, action_log_probs, dones, nei_r, uav_r, car_r, global_r = transition
-        # expand_dim
-        rewards = np.expand_dims(rewards, -1)
-        nei_r = np.expand_dims(nei_r, -1)
-        uav_r = np.expand_dims(uav_r, -1)
-        car_r = np.expand_dims(car_r, -1)
-        global_r = np.expand_dims(global_r, -1)
 
-        # == dones ==
-        done = dones[0]
-        dones = np.ones((self.n_rollout_threads, self.n_agent, 1)) if done else \
-            np.zeros((self.n_rollout_threads, self.n_agent, 1))
-        # ==
-
-        for i in range(self.n_agent):
-            '''agentthreadsactionaction_log_prob'''
-            action = []
-            for e in range(self.n_rollout_threads):
-                action.append(actions[e][i])
-            action = np.array(action)
-            if action.shape == (self.n_rollout_threads,):  # car buffer[0, 0, 5]  [[0], [0], [5]]
-                action = np.expand_dims(action, -1)
-
-            action_log_prob = []
-            for e in range(self.n_rollout_threads):
-                action_log_prob.append(action_log_probs[e][i])
-            action_log_prob = np.array(action_log_prob)
-            if action_log_prob.shape == (self.n_rollout_threads,):  # car buffer[0, 0, 5]  [[0], [0], [5]]
-                action_log_prob = np.expand_dims(action_log_prob, -1)
-
-            self.buffer[i].buffer_insert(
-                obs[:, i],
-                action,
-                action_log_prob,
-                rewards[:, i],
-                obs_prime[:, i],
-                dones[:, i],
-                nei_r[:, i],
-                uav_r[:, i],
-                car_r[:, i],
-                global_r[:, i],
-                available_actions=None if self.is_uav(i) else action_mask[:, i - self.n_uav]
-            )

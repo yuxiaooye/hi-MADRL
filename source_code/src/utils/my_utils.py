@@ -60,9 +60,6 @@ def env_config_wrapper(env_config, num_uv=None, sinr_demand=None, num_subchannel
 
     return env_config
 
-def env_config_wrapper2(env_config, scale):
-    env_config['max_data_amount'] *= scale
-    return env_config
 
 def get_load_timestep(load_dir):
 

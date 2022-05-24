@@ -1,6 +1,4 @@
-"""
-TODO env_wrappers doneenv.reset mappo algo
-"""
+
 import numpy as np
 import torch
 from multiprocessing import Process, Pipe
@@ -145,7 +143,6 @@ class ShareVecEnv(ABC):
 
     @property
     def unwrapped(self):
-        # TODO
         if isinstance(self, VecEnvWrapper):
             return self.venv.unwrapped
         else:

@@ -75,7 +75,7 @@ def set_timeout(num):
     return wrap
 
 
-# TODO no longer use it
+
 def judge_intersection(obj1, obj2, buildings, mode):
     if type(obj1) in [tuple, list] and type(obj2) in [tuple, list]:
         x1, y1, z1 = obj1
@@ -135,7 +135,7 @@ def judge_intersection(obj1, obj2, buildings, mode):
     else:
         return True
 
-# TODO judge stage 3 incorrect
+
 def judge_intersection_2(obj1, obj2, buildings, mode):
 
     if type(obj1) in [tuple, list] and type(obj2) in [tuple, list]:
@@ -319,7 +319,7 @@ def judge_intersection_3(obj1, obj2, buildings, mode):
         return true_or_false(mode)
     return not_true_or_false(mode)
 
-# TODO! corner
+
 def judge_intersection_4(obj1, obj2, buildings, mode):
 
     if type(obj1) in [tuple, list] and type(obj2) in [tuple, list]:
