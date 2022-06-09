@@ -64,4 +64,8 @@ python tools/post/vis_gif.py --output_dir <OUTPUT_DIR>
 --group_save_dir <OUTPUT_DIR>
 ```
 
-then a .html file is generated, you can drag the control panel at lower left corner to see how UVs move.
+then a .html file is generated, take purdue as example:
+
+![image-20220609183019344](https://cdn.jsdelivr.net/gh/1candoallthings/figure-bed@main/img/202206091830013.png)
+
+you can drag the control panel at lower left corner to see how UVs move.
