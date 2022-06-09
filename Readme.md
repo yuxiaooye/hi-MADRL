@@ -1,7 +1,10 @@
 ## Readme
 
-### Installation
+Overview of h/i-MADRL:
 
+![archi1_6_9改](https://cdn.jsdelivr.net/gh/1candoallthings/figure-bed@main/img/202206091648024.png)
+
+## Installation
 Here we give an example installation on CUDA == 11.4.
 
 Create conda environment
@@ -28,7 +31,7 @@ In order to use osmnx to generate roadmap, some dependencies are required：
 
 For other required packages, please run the code and find which required package hasn't installed yet. Most of them can be installed by `pip install`.
 
-### How to train hi-MADRL
+## How to train hi-MADRL
 
 To train hi-MADRL, use:
 
@@ -40,7 +43,7 @@ where `<DATASET_STR>` can be "purdue" or "NCSU". Default hyperparameters of hi-M
 
 add `--output_dir <OUTPUT_DIR>` to specify the place to save outputs（by default outputs are saved in  `../runs/debug`).
 
-### Outputs
+## Outputs
 
 - tensorboard
 - `model` saved best model
@@ -52,7 +55,7 @@ add `--output_dir <OUTPUT_DIR>` to specify the place to save outputs（by defaul
   best trajs have been changed in ts=200. best_train_reward: 0.238 efficiency: 2.029 collect_data_ratio: 0.550 loss_ratio: 0.011 fairness: 0.577 energy_consumption_ratio: 0.155
   ```
 
-### Visualized trajectories
+## Visualized trajectories
 
 use:
 
