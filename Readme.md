@@ -4,6 +4,15 @@ Overview of h/i-MADRL:
 
 ![archi1_6_9改](https://cdn.jsdelivr.net/gh/1candoallthings/figure-bed@main/img/202206091648024.png)
 
+h/i-MADRL consists of one base module and two plug-in modules:
+
+- the base module can be almost any multi-agent actor-critic algorithms, we use IPPO as the exemplar base module.
+
+- the first plug-in module i-EOI encourages a better spatial division of work between UAVs and UGVs.
+
+
+- the second plug-in module h-CoPO accurately modeling cooperation preferences for both UAVs and UGVs.
+
 ## Installation
 Here we give an example installation on CUDA == 11.4.
 
@@ -43,11 +52,13 @@ where `<DATASET_STR>` can be "purdue" or "NCSU". Default hyperparameters of hi-M
 
 add `--output_dir <OUTPUT_DIR>` to specify the place to save outputs（by default outputs are saved in  `../runs/debug`).
 
+*For ablation study, simply remove `--use_eoi` or `--use_hcopo` or both of them.*
+
 ## Outputs
 
 - tensorboard
 - `model` saved best model
-- `train_saved_trajs` saved best trajectories for UVs
+- `train_saved_trajs` saved best trajectories for UAVs and UGVs
 
 - `train_output.txt` records the performance in terms of 5 metrics:
 
@@ -57,15 +68,22 @@ add `--output_dir <OUTPUT_DIR>` to specify the place to save outputs（by defaul
 
 ## Visualized trajectories
 
-use:
+Use:
 
 ```
 python tools/post/vis_gif.py --output_dir <OUTPUT_DIR>
 --group_save_dir <OUTPUT_DIR>
 ```
 
-then a .html file is generated, take purdue as example:
+You can use our pretrained output:
+
+```
+python tools/post/vis_gif.py --output_dir runs\pretrained_output_purdue
+--group_save_dir runs\pretrained_output_purdue
+```
+
+then a .html file showing visualized trajectories is generated:
 
 ![image-20220609183019344](https://cdn.jsdelivr.net/gh/1candoallthings/figure-bed@main/img/202206091830013.png)
 
-you can drag the control panel at lower left corner to see how UVs move.
+you can drag the control panel at lower left corner to see how UAVs and UGVs move.
